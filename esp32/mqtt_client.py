@@ -18,6 +18,15 @@ class MQTTManager:
 
     def publish(self, topic, message):
         self.client.publish(topic, message)
+    
+    def subscribe(self, topic):
+        self.client.subscribe(topic)
+
+    def set_callback(self, callback):
+        self.client.set_callback(callback)
+
+    def check_messages(self):
+        self.client.check_msg()
 
     def disconnect(self):
         self.client.disconnect()

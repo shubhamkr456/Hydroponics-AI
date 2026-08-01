@@ -12,9 +12,9 @@ VREF = 3.3
 ADC_RES = 4095.0
 SCOUNT = 30
 
-NUM_POINTS = 6
-CAL_VOLTAGES = [0.05, 0.51, 0.82, 1.29, 1.41, 1.73]
-CAL_TDS = [67, 267.0, 426.0, 542.0, 720.0, 870]
+NUM_POINTS = 7
+CAL_VOLTAGES = [0.05,0.297, 0.51, 0.817 , 1.29, 1.41, 1.73]
+CAL_TDS =      [67,  150,   267.0, 350.0, 542.0, 720.0, 870]
 
 # --- Ultrasonic Config ---
 TRIG_PIN = 5
@@ -25,7 +25,7 @@ LDR_PIN = 35
 MIN_RAW = 0
 MAX_RAW = 2600
 
-# --- DHT22 Config ---
+# --- DHT11 Config ---
 DHT_PIN = 23
 
 # ==========================================
@@ -47,7 +47,7 @@ ldr.atten(ADC.ATTN_11DB)
 ldr.width(ADC.WIDTH_12BIT)
 
 # DHT22
-dht_sensor = dht.DHT22(Pin(DHT_PIN))
+dht_sensor = dht.DHT11(Pin(DHT_PIN))
 
 # ==========================================
 # HELPER FUNCTIONS
@@ -200,11 +200,12 @@ def read_all():
     temp, humidity = read_dht_sensor()
 
     return {
-        "temperature": temp,
+        "temperature":temp,
         "humidity": humidity,
         "tds": ppm,
         "tds_voltage": round(tds_voltage, 3),
         "reservoir_distance_cm": round(distance, 2),
         "ldr_raw": ldr_raw,
+        "ph": 6.4,
         "light_percentage": light_pct
     }

@@ -1,0 +1,54 @@
+.sidebar{
+
+    width:240px;
+
+    height:100vh;
+
+    background:#1F2937;
+
+    color:white;
+
+    padding:25px;
+
+    position:fixed;
+
+    left:0;
+
+    top:0;
+
+}
+
+.sidebar h2{
+
+    margin-bottom:40px;
+
+}
+
+.sidebar ul{
+
+    list-style:none;
+
+    padding:0;
+
+}
+
+.sidebar li{
+
+    padding:15px;
+
+    margin-bottom:10px;
+
+    border-radius:8px;
+
+    cursor:pointer;
+
+    transition:.3s;
+    font: bold 1.5rem 'Segoe UI', sans-serif;
+
+}
+
+.sidebar li:hover{
+
+    background:#04AA6D;
+
+}
