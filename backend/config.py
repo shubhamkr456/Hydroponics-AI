@@ -1,0 +1,1 @@
+DATABASE_URI = "postgresql://postgres:123456789@localhost:5432/hydroponics"

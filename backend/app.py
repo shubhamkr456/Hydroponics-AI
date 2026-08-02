@@ -3,11 +3,21 @@ from flask_cors import CORS
 import json
 import paho.mqtt.client as mqtt
 
+from database.db import db
+from database.models import SensorReading
+from config import DATABASE_URI
+
 # ==========================================
 # Flask App
 # ==========================================
 
 app = Flask(__name__)
+
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+
 CORS(app)
 
 # ==========================================
@@ -31,8 +41,8 @@ latest_data = {
     "humidity": 65,
     "ph": 6.20,
     "tds": 350,
-    "light": 72,
-    "reservoir": 18,
+    "light_percentage": 72,
+    "reservoir_distance_cm": 18,
     "lastUpdate": "--:--"
 }
 
@@ -52,18 +62,47 @@ def home():
 
 @app.route("/captures", methods=["POST"])
 def captures():
+
     global latest_data, sensor_history
 
     try:
+
         data = request.get_json()
+
+        # ----------------------------
+        # Update live dashboard
+        # ----------------------------
 
         latest_data = data
 
         sensor_history.append(data)
 
-        # Keep only last 100 readings
         if len(sensor_history) > 100:
             sensor_history.pop(0)
+
+        # ----------------------------
+        # Save to PostgreSQL
+        # ----------------------------
+
+        reading = SensorReading(
+
+            temperature=data.get("temperature"),
+
+            humidity=data.get("humidity"),
+
+            ph=data.get("ph"),
+
+            tds=data.get("tds"),
+
+            light_percentage=data.get("light_percentage"),
+
+            reservoir_distance_cm=data.get("reservoir_distance_cm")
+
+        )
+
+        db.session.add(reading)
+
+        db.session.commit()
 
         print("\n========== Sensor Data ==========")
         print(data)
@@ -73,6 +112,9 @@ def captures():
         }), 200
 
     except Exception as e:
+
+        db.session.rollback()
+
         print("Capture Error:", e)
 
         return jsonify({
@@ -80,14 +122,15 @@ def captures():
             "message": str(e)
         }), 500
 
-
 @app.route("/api/latest", methods=["GET"])
 def latest():
+
     return jsonify(latest_data)
 
 
 @app.route("/api/history", methods=["GET"])
 def history():
+
     return jsonify(sensor_history)
 
 
@@ -131,6 +174,10 @@ def relay():
 # ==========================================
 
 if __name__ == "__main__":
+
+    with app.app_context():
+        db.create_all()
+
     app.run(
         host="0.0.0.0",
         port=5000,
