@@ -1,0 +1,44 @@
+.toggle-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    padding: 20px;
+    margin: 15px 0;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.1);
+}
+
+.toggle-label {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.toggle-switch {
+    width: 60px;
+    height: 32px;
+    background: #ccc;
+    border-radius: 20px;
+    cursor: pointer;
+    position: relative;
+    transition: 0.3s;
+}
+
+.toggle-switch.on {
+    background: #04AA6D;
+}
+
+.toggle-knob {
+    width: 26px;
+    height: 26px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    transition: 0.3s;
+}
+
+.toggle-switch.on .toggle-knob {
+    left: 31px;
+}

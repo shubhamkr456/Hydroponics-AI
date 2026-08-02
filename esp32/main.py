@@ -12,13 +12,29 @@ import time
 # Relay Configuration (Active Low)
 # ==========================================
 
-relay_33 = Pin(33, Pin.OUT)
-relay_25 = Pin(25, Pin.OUT)
-relay_26 = Pin(26, Pin.OUT)
+relays = {
+    33: Pin(33, Pin.OUT),
+    25: Pin(25, Pin.OUT),
+    26: Pin(26, Pin.OUT),
+    4: Pin(4, Pin.OUT),
+}
 
-relay_33.value(1)
-relay_25.value(1)
-relay_26.value(1)
+# All relays OFF initially (Active Low)
+for relay in relays.values():
+    relay.value(1)
+
+# ==========================================
+# Pump Runtime Configuration
+# ==========================================
+
+PUMP_RUNTIME = 5  # seconds
+
+pump_timers = {
+    33: None,
+    25: None,
+    26: None,
+    4:None,
+}
 
 # ==========================================
 # MQTT Callback
@@ -28,22 +44,29 @@ def mqtt_callback(topic, msg):
 
     print("MQTT Received:", topic, msg)
 
-    data = json.loads(msg)
+    try:
+        data = json.loads(msg)
 
-    relay = data["relay"]
-    state = data["state"]
+        relay = data["relay"]
+        state = data["state"]
 
-    # Active-low relay logic
-    gpio_state = 0 if state else 1
+        if relay not in relays:
+            print("Unknown relay:", relay)
+            return
 
-    if relay == 33:
-        relay_33.value(gpio_state)
+        # Active-low relay logic
+        if state:
+            relays[relay].value(0)       # ON
+            pump_timers[relay] = time.time()
+            print("Relay", relay, "ON")
 
-    elif relay == 25:
-        relay_25.value(gpio_state)
+        else:
+            relays[relay].value(1)       # OFF
+            pump_timers[relay] = None
+            print("Relay", relay, "OFF")
 
-    elif relay == 26:
-        relay_26.value(gpio_state)
+    except Exception as e:
+        print("MQTT Callback Error:", e)
 
 # ==========================================
 # Wi-Fi & MQTT
@@ -62,10 +85,10 @@ mqtt.subscribe("hydroponics/control")
 print("Hydroponics Node Started")
 
 # ==========================================
-# Scheduler
+# Sensor Publish Configuration
 # ==========================================
 
-PUBLISH_INTERVAL = 60       # seconds (change to 5 while developing)
+PUBLISH_INTERVAL = 60      # Change to 5 during development
 
 last_publish = 0
 
@@ -77,12 +100,31 @@ while True:
 
     try:
 
-        # Listen for incoming MQTT commands continuously
+        # Listen for MQTT commands continuously
         mqtt.check_messages()
 
         now = time.time()
 
-        # Publish sensor data only every PUBLISH_INTERVAL seconds
+        # ------------------------------------------
+        # Auto Turn OFF Pumps
+        # ------------------------------------------
+
+        for relay, start_time in pump_timers.items():
+
+            if start_time is not None:
+
+                if now - start_time >= PUMP_RUNTIME:
+
+                    relays[relay].value(1)      # OFF (Active Low)
+
+                    pump_timers[relay] = None
+
+                    print("Relay", relay, "AUTO OFF")
+
+        # ------------------------------------------
+        # Publish Sensor Data
+        # ------------------------------------------
+
         if now - last_publish >= PUBLISH_INTERVAL:
 
             sensor_data = read_all()
@@ -96,8 +138,7 @@ while True:
 
             last_publish = now
 
-        # Small delay keeps CPU usage low while remaining responsive
-        time.sleep(0.5)
+        time.sleep(0.1)
 
     except Exception as e:
         print("Error:", e)
