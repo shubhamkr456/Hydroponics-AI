@@ -1,33 +1,24 @@
+#---Imports--------------------------------
 from wifi import connect
 from mqtt_client import MQTTManager
 from sensors import read_all
 from config import MQTT_TOPIC_SENSOR
 
-from machine import Pin
-
 import json
 import time
+from relay import relays
+from display import init_display, update_display
 
 # ==========================================
-# Relay Configuration (Active Low)
-# ==========================================
-
-relays = {
-    33: Pin(33, Pin.OUT),
-    25: Pin(25, Pin.OUT),
-    26: Pin(26, Pin.OUT),
-    4: Pin(4, Pin.OUT),
-}
-
-# All relays OFF initially (Active Low)
-for relay in relays.values():
-    relay.value(1)
-
-# ==========================================
-# Pump Runtime Configuration
+# Constants
 # ==========================================
 
 PUMP_RUNTIME = 5  # seconds
+PUBLISH_INTERVAL = 60
+DISPLAY_INTERVAL = 4
+
+# -- changed to global
+latest_sensor_data = {}
 
 pump_timers = {
     33: None,
@@ -36,6 +27,77 @@ pump_timers = {
     4:None,
 }
 
+# ==========================================
+# FUNCTIONS
+# ==========================================
+
+def initialize():
+
+    print("Connecting Wi-Fi...")
+    connect()
+
+    print("Connecting MQTT...")
+    mqtt = MQTTManager()
+    mqtt.connect()
+
+    mqtt.set_callback(mqtt_callback)
+    mqtt.subscribe("hydroponics/control")
+
+    print("Hydroponics Node Started")
+
+    return mqtt
+
+def auto_turn_off_pumps(now):
+
+    for relay, start_time in pump_timers.items():
+
+        if start_time is None:
+            continue
+
+        if now - start_time >= PUMP_RUNTIME:
+
+            relays[relay].value(1)
+
+            pump_timers[relay] = None
+
+            print("Relay", relay, "AUTO OFF")
+
+"""
+def publish_sensor_data(
+    mqtt,
+    now,
+    last_publish,
+    lcd,
+    oled_ch5,
+    oled_ch7,
+    i2c,
+    page,):
+    
+    global latest_sensor_data
+
+    if now - last_publish < PUBLISH_INTERVAL:
+        return last_publish, page
+
+    #sensor_data = read_all()
+    # inserted here
+    latest_sensor_data = read_all()
+
+    page = update_display(
+        lcd,
+        oled_ch5,
+        oled_ch7,
+        i2c,
+        latest_sensor_data,
+        page,
+    )
+    
+    mqtt.publish(
+    MQTT_TOPIC_SENSOR,
+    json.dumps(latest_sensor_data))
+
+    print(latest_sensor_data)
+
+    return now, page"""
 # ==========================================
 # MQTT Callback
 # ==========================================
@@ -68,73 +130,57 @@ def mqtt_callback(topic, msg):
     except Exception as e:
         print("MQTT Callback Error:", e)
 
-# ==========================================
-# Wi-Fi & MQTT
-# ==========================================
 
-print("Connecting Wi-Fi...")
-connect()
 
-print("Connecting MQTT...")
-mqtt = MQTTManager()
-mqtt.connect()
 
-mqtt.set_callback(mqtt_callback)
-mqtt.subscribe("hydroponics/control")
+#  Connect and initialize wifi
+#--------------------Working Crux of the code--------
+mqtt = initialize()
+lcd, oled_ch5, oled_ch7, i2c = init_display()
 
-print("Hydroponics Node Started")
+page = 0
 
-# ==========================================
-# Sensor Publish Configuration
-# ==========================================
-
-PUBLISH_INTERVAL = 60      # Change to 5 during development
+latest_sensor_data = read_all()
 
 last_publish = 0
-
-# ==========================================
-# Main Loop
-# ==========================================
-
+last_display = 0
+#-----------------
+# MAIn Loop
+#-----------------
 while True:
 
     try:
 
-        # Listen for MQTT commands continuously
         mqtt.check_messages()
 
         now = time.time()
 
-        # ------------------------------------------
-        # Auto Turn OFF Pumps
-        # ------------------------------------------
+        auto_turn_off_pumps(now)
 
-        for relay, start_time in pump_timers.items():
+        # -----------------------------
+        # Refresh Display
+        # -----------------------------
+        if now - last_display >= DISPLAY_INTERVAL:
+            page = update_display(
+             lcd, oled_ch5,
+             oled_ch7, i2c,
+               latest_sensor_data,
+                page )
+            last_display = now
 
-            if start_time is not None:
-
-                if now - start_time >= PUMP_RUNTIME:
-
-                    relays[relay].value(1)      # OFF (Active Low)
-
-                    pump_timers[relay] = None
-
-                    print("Relay", relay, "AUTO OFF")
-
-        # ------------------------------------------
-        # Publish Sensor Data
-        # ------------------------------------------
-
+        # -----------------------------
+        # Read Sensors + Publish MQTT
+        # -----------------------------
         if now - last_publish >= PUBLISH_INTERVAL:
 
-            sensor_data = read_all()
+            latest_sensor_data = read_all()
 
             mqtt.publish(
                 MQTT_TOPIC_SENSOR,
-                json.dumps(sensor_data)
+                json.dumps(latest_sensor_data)
             )
 
-            print(sensor_data)
+            print(latest_sensor_data)
 
             last_publish = now
 
