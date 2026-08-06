@@ -3,7 +3,7 @@ from wifi import connect
 from mqtt_client import MQTTManager
 from sensors import read_all
 from config import MQTT_TOPIC_SENSOR
-
+import gc
 import json
 import time
 from relay import relays
@@ -15,7 +15,7 @@ from display import init_display, update_display
 
 PUMP_RUNTIME = 5  # seconds
 PUBLISH_INTERVAL = 60
-DISPLAY_INTERVAL = 4
+
 
 # -- changed to global
 latest_sensor_data = {}
@@ -62,42 +62,6 @@ def auto_turn_off_pumps(now):
 
             print("Relay", relay, "AUTO OFF")
 
-"""
-def publish_sensor_data(
-    mqtt,
-    now,
-    last_publish,
-    lcd,
-    oled_ch5,
-    oled_ch7,
-    i2c,
-    page,):
-    
-    global latest_sensor_data
-
-    if now - last_publish < PUBLISH_INTERVAL:
-        return last_publish, page
-
-    #sensor_data = read_all()
-    # inserted here
-    latest_sensor_data = read_all()
-
-    page = update_display(
-        lcd,
-        oled_ch5,
-        oled_ch7,
-        i2c,
-        latest_sensor_data,
-        page,
-    )
-    
-    mqtt.publish(
-    MQTT_TOPIC_SENSOR,
-    json.dumps(latest_sensor_data))
-
-    print(latest_sensor_data)
-
-    return now, page"""
 # ==========================================
 # MQTT Callback
 # ==========================================
@@ -141,14 +105,14 @@ oled_ch5, oled_ch7, i2c = init_display()
 latest_sensor_data = read_all()
 
 last_publish = 0
-last_display = 0
 #-----------------
 # MAIn Loop
 #-----------------
+#-----------------
+# MAIN Loop
+#-----------------
 while True:
-
     try:
-
         mqtt.check_messages()
 
         now = time.time()
@@ -156,23 +120,22 @@ while True:
         auto_turn_off_pumps(now)
 
         # -----------------------------
-        # Refresh Display
-        # -----------------------------
-        if now - last_display >= DISPLAY_INTERVAL:
-            update_display(
-             oled_ch5,
-             oled_ch7, i2c,
-               latest_sensor_data,
-             )
-            last_display = now
-
-        # -----------------------------
-        # Read Sensors + Publish MQTT
+        # Read Sensors, Update Screens + Publish MQTT
         # -----------------------------
         if now - last_publish >= PUBLISH_INTERVAL:
 
+            # 1. Get new data
             latest_sensor_data = read_all()
 
+            # 2. Push new data to the OLEDs
+            update_display(
+                oled_ch5,
+                oled_ch7, 
+                i2c,
+                latest_sensor_data
+            )
+
+            # 3. Publish to MQTT
             mqtt.publish(
                 MQTT_TOPIC_SENSOR,
                 json.dumps(latest_sensor_data)
@@ -181,6 +144,8 @@ while True:
             print(latest_sensor_data)
 
             last_publish = now
+            
+            # Optional: gc.collect() here if you added garbage collection
 
         time.sleep(0.1)
 

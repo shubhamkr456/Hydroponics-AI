@@ -52,3 +52,32 @@
     background:#04AA6D;
 
 }
+.sidebar a {
+
+    display: block;
+
+    color: white;
+
+    text-decoration: none;
+
+    padding: 15px;
+
+    border-radius: 8px;
+
+    transition: 0.3s;
+
+}
+
+.sidebar a:hover {
+
+    background: #04AA6D;
+
+}
+
+.active-link {
+
+    background: #04AA6D;
+
+    font-weight: bold;
+
+}
