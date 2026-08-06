@@ -1,14 +1,12 @@
 import time
 from machine import Pin, I2C
 import ssd1306
-from i2c_lcd import I2cLcd
 from mux import select_mux_channel
 from bigfont import (
     draw_big_char,
     draw_big_text_right,
     draw_label,
 )
-from lcd import update_lcd
 
 # ==========================================
 # 3. HARDWARE SETUP & HELPERS
@@ -16,21 +14,12 @@ from lcd import update_lcd
 # Using 100kHz for maximum stability across mixed devices
 i2c = I2C(0, sda=Pin(21), scl=Pin(22), freq=100000)
 
-LCD_ADDR = 0x27 
-
-
 # ==========================================
 # 4. INITIALIZATION
 # ==========================================
 def init_display():
-
     print("Waiting for screens to power up...")
     time.sleep(1)
-
-    print("Configuring LCD on Channel 1...")
-    select_mux_channel(i2c, 1)
-    lcd = I2cLcd(i2c, LCD_ADDR, 2, 16)
-    lcd.putstr("LCD Online!")
 
     print("Configuring OLEDs...")
     select_mux_channel(i2c, 5)
@@ -40,19 +29,17 @@ def init_display():
     oled_ch7 = ssd1306.SSD1306_I2C(128, 64, i2c)
 
     print("Setup Complete!")
-
-    return lcd, oled_ch5, oled_ch7, i2c
+    
+    return oled_ch5, oled_ch7, i2c
 
 # ==========================================
 # 5. MAIN LOOP
 # ==========================================
 def update_display(
-    lcd,
     oled_ch5,
     oled_ch7,
     i2c,
-    sensor_data,
-    page):
+    sensor_data):
 
 #---------------------------------
 # Live Sensor Data
@@ -65,13 +52,6 @@ def update_display(
 
     reservoir_level_cm = sensor_data["reservoir_distance_cm"]
     light_percent = sensor_data["light_percentage"]
-
-    # Placeholder values for now
-    pump_on = False
-    dosing_on = False
-    wifi_ok = True
-    mqtt_ok = True
-
 
 # ----------------------------------
     # WATER LEVEL CALCULATION
@@ -104,7 +84,12 @@ def update_display(
     oled_ch5.text("%", 2, 52)
     draw_big_text_right(oled_ch5, "{:.0f}".format(humidity), 36, scale=5)
     
-    oled_ch5.show()
+    try:
+        time.sleep_ms(5)
+        oled_ch5.show()
+        time.sleep_ms(1)
+    except Exception as e:
+        print("OLED5:", e)
     
     # ------------------------------------------
     # UPDATE OLED 2: WATER QUALITY (CH 7)
@@ -120,19 +105,7 @@ def update_display(
     oled_ch7.text("ppm", 68, 16) 
     draw_big_text_right(oled_ch7, "{:.0f}".format(tds_ppm), 34, scale=4, right_edge=128)
     
-    oled_ch7.show()
-    
-    page = update_lcd(
-    lcd,
-    i2c,
-    page,
-    water_percent,
-    light_percent,
-    pump_on,
-    dosing_on,
-    wifi_ok,
-    mqtt_ok,
-    reservoir_level_cm)
-
-    return page
-
+    try:
+        oled_ch7.show()
+    except Exception as e:
+        print("OLED7:", e)

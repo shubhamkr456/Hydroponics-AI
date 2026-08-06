@@ -136,9 +136,7 @@ def mqtt_callback(topic, msg):
 #  Connect and initialize wifi
 #--------------------Working Crux of the code--------
 mqtt = initialize()
-lcd, oled_ch5, oled_ch7, i2c = init_display()
-
-page = 0
+oled_ch5, oled_ch7, i2c = init_display()
 
 latest_sensor_data = read_all()
 
@@ -161,11 +159,11 @@ while True:
         # Refresh Display
         # -----------------------------
         if now - last_display >= DISPLAY_INTERVAL:
-            page = update_display(
-             lcd, oled_ch5,
+            update_display(
+             oled_ch5,
              oled_ch7, i2c,
                latest_sensor_data,
-                page )
+             )
             last_display = now
 
         # -----------------------------
