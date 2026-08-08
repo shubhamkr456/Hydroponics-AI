@@ -1,0 +1,33 @@
+from umqtt.simple import MQTTClient
+from configi import DEVICE_ID, MQTT_BROKER, MQTT_PORT
+
+
+class MQTTManager:
+
+    def __init__(self):
+        self.client = MQTTClient(
+            client_id=DEVICE_ID,
+            server=MQTT_BROKER,
+            port=MQTT_PORT
+        )
+
+    def connect(self):
+        print("Connecting to MQTT...")
+        self.client.connect()
+        print("MQTT Connected")
+
+    def publish(self, topic, message):
+        self.client.publish(topic, message)
+    
+    def subscribe(self, topic):
+        self.client.subscribe(topic)
+
+    def set_callback(self, callback):
+        self.client.set_callback(callback)
+
+    def check_messages(self):
+        self.client.check_msg()
+
+    def disconnect(self):
+        self.client.disconnect()
+

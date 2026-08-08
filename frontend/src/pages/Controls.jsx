@@ -11,6 +11,9 @@ function Controls() {
         pumpC: false,
         waterPump: false
     });
+    const [incubatorMode, setIncubatorMode] = useState("AUTO");
+
+    const [growLight, setGrowLight] = useState(false);
 
 async function toggleControl(name, relay) {
 
@@ -26,6 +29,7 @@ async function toggleControl(name, relay) {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
+                    device_id: "esp32_main",
                     relay: relay,
                     state: newState
                 })
@@ -62,6 +66,56 @@ async function toggleControl(name, relay) {
     }
 
 }
+async function sendIncubatorCommand(payload) {
+
+    try {
+
+        const response = await fetch(
+            "http://127.0.0.1:5000/api/relay",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    device_id: "esp32_incubator",
+                    ...payload
+                })
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error("Failed to send command");
+        }
+
+    } catch (err) {
+
+        console.error(err);
+
+    }
+}
+async function setMode(mode) {
+
+    setIncubatorMode(mode);
+
+    await sendIncubatorCommand({
+        mode: mode
+    });
+
+}
+
+async function toggleGrowLight() {
+
+    const newState = !growLight;
+
+    setGrowLight(newState);
+
+    await sendIncubatorCommand({
+        mode: "MANUAL",
+        light: newState
+    });
+
+}
     return (
 
         <>
@@ -96,7 +150,40 @@ async function toggleControl(name, relay) {
                     isOn={switches.waterPump}
                     onToggle={() => toggleControl("waterPump", 4)}
                 />
+                <hr />
 
+                <h2>Incubator Controller</h2>
+
+                <div style={{ marginBottom: "20px" }}>
+
+                    <button
+                        onClick={() => setMode("AUTO")}
+                        disabled={incubatorMode === "AUTO"}
+                    >
+                        AUTO
+                    </button>
+
+                    <button
+                        onClick={() => setMode("MANUAL")}
+                        disabled={incubatorMode === "MANUAL"}
+                        style={{ marginLeft: "10px" }}
+                    >
+                        MANUAL
+                    </button>
+
+                </div>
+
+              <ToggleSwitch
+                        label="Grow Light"
+                        isOn={growLight}
+                        onToggle={() => {
+
+                            if (incubatorMode === "MANUAL") {
+                                toggleGrowLight();
+                            }
+
+                        }}
+                    />
             </main>
 
         </>

@@ -2,7 +2,7 @@
 from wifi import connect
 from mqtt_client import MQTTManager
 from sensors import read_all
-from config import MQTT_TOPIC_SENSOR
+from config import MQTT_TOPIC_SENSOR, DEVICE_ID
 import gc
 import json
 import time
@@ -72,6 +72,8 @@ def mqtt_callback(topic, msg):
 
     try:
         data = json.loads(msg)
+        if data["device_id"] != DEVICE_ID:
+            return
 
         relay = data["relay"]
         state = data["state"]
