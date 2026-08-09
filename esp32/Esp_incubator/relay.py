@@ -18,7 +18,7 @@ _grow_light_on = False
 def turn_on():
     global _grow_light_on
 
-    relay.value(0)          
+    relay.value(1)          # Active LOW
     _grow_light_on = True
 
     print("Grow Light ON")
@@ -27,7 +27,7 @@ def turn_on():
 def turn_off():
     global _grow_light_on
 
-    relay.value(1)
+    relay.value(0)
     _grow_light_on = False
 
     print("Grow Light OFF")

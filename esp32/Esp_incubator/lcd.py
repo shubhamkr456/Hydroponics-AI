@@ -35,6 +35,29 @@ def startup():
     lcd.putstr("Incubator")
 
 
+def show_wifi_error():
+
+    lcd.clear()
+
+    lcd.putstr("WiFi Lost\nReconnect...")
+
+
+def show_mqtt_error():
+
+    lcd.clear()
+
+    lcd.putstr("MQTT Lost\nReconnect...")
+
+def show_status(message1, message2=""):
+
+    lcd.clear()
+
+    lcd.move_to(0, 0)
+    lcd.putstr(message1[:16])
+
+    lcd.move_to(0, 1)
+    lcd.putstr(message2[:16])
+
 
 def update_display(mode,
                    hour,

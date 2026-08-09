@@ -1,6 +1,6 @@
 # config.py
 
-DEVICE_ID = "esp32_001"
+DEVICE_ID = "esp32_main"
 
 # Wi-Fi
 WIFI_SSID = "Hydroponics_LAB"

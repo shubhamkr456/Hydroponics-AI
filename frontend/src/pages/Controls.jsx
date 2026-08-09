@@ -128,7 +128,7 @@ async function toggleGrowLight() {
                 <h2>Hydroponics Controller</h2>
 
                 <ToggleSwitch
-                    label="Nutrient Pump A"
+                    label="Nutrient Pump C"
                     isOn={switches.pumpA}
                     onToggle={() => toggleControl("pumpA", 33)}
                 />
@@ -140,7 +140,7 @@ async function toggleGrowLight() {
                 />
 
                 <ToggleSwitch
-                    label="Nutrient Pump C"
+                    label="Nutrient Pump A"
                     isOn={switches.pumpC}
                     onToggle={() => toggleControl("pumpC", 26)}
                 />

@@ -46,6 +46,12 @@ latest_data = {
     "lastUpdate": "--:--"
 }
 
+incubator_status = {
+    "device_id": "esp32_incubator",
+    "mode": "AUTO",
+    "light": False,
+    "dark": False
+}
 sensor_history = []
 
 # ==========================================
@@ -121,6 +127,43 @@ def captures():
             "status": "error",
             "message": str(e)
         }), 500
+
+@app.route("/api/incubator/status", methods=["POST"])
+def update_incubator_status():
+
+    global incubator_status
+
+    try:
+
+        data = request.get_json()
+
+        if data.get("device_id") != "esp32_incubator":
+            return jsonify({
+                "status": "ignored"
+            }), 200
+
+        incubator_status = data
+
+        print("\n========== Incubator Status ==========")
+        print(incubator_status)
+
+        return jsonify({
+            "status": "success"
+        }), 200
+
+    except Exception as e:
+
+        print("Incubator Status Error:", e)
+
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500    
+
+@app.route("/api/incubator/status", methods=["GET"])
+def get_incubator_status():
+
+    return jsonify(incubator_status)
 
 @app.route("/api/latest", methods=["GET"])
 def latest():

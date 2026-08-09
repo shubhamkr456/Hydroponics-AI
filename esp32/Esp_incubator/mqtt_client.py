@@ -30,4 +30,3 @@ class MQTTManager:
 
     def disconnect(self):
         self.client.disconnect()
-

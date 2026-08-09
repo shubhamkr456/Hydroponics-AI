@@ -128,7 +128,7 @@ while True:
 
             # 1. Get new data
             latest_sensor_data = read_all()
-
+            latest_sensor_data["device_id"] = DEVICE_ID
             # 2. Push new data to the OLEDs
             update_display(
                 oled_ch5,
