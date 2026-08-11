@@ -182,22 +182,6 @@ const pumps = [
 
         </div>
 
-        <h2>Pump Control</h2>
-
-        <div className="sensor-grid">
-
-          {pumps.map((pump) => (
-
-            <ToggleSwitch
-              key={pump.gpio}
-              label={`${pump.icon} ${pump.name} `}
-              isOn={pumpState[pump.gpio]}
-              onToggle={() => togglePump(pump.gpio)}
-            />
-
-          ))}
-
-        </div>
 
       </main>
     </>

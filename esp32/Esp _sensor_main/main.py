@@ -102,7 +102,7 @@ def mqtt_callback(topic, msg):
 #  Connect and initialize wifi
 #--------------------Working Crux of the code--------
 mqtt = initialize()
-oled_ch5, oled_ch7, i2c = init_display()
+oled_ch5, oled_ch7, oled_ch3, i2c = init_display()
 
 latest_sensor_data = read_all()
 
@@ -132,7 +132,8 @@ while True:
             # 2. Push new data to the OLEDs
             update_display(
                 oled_ch5,
-                oled_ch7, 
+                oled_ch7,
+                oled_ch3,
                 i2c,
                 latest_sensor_data
             )
@@ -148,8 +149,13 @@ while True:
             last_publish = now
             
             # Optional: gc.collect() here if you added garbage collection
-
+            gc.collect()
         time.sleep(0.1)
 
     except Exception as e:
         print("Error:", e)
+        
+        
+        
+        
+        

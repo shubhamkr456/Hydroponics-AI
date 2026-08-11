@@ -132,18 +132,44 @@ def get_distance():
 
     trig.value(0)
 
+    # ------------------------------------------
+    # Wait for ECHO to become HIGH
+    # ------------------------------------------
+
+    timeout = time.ticks_us() + 30000
+
     while echo.value() == 0:
-        pulse_start = time.time_ns()
+
+        if time.ticks_diff(timeout, time.ticks_us()) <= 0:
+            return None
+
+    pulse_start = time.ticks_us()
+
+    # ------------------------------------------
+    # Wait for ECHO to become LOW
+    # ------------------------------------------
+
+    timeout = time.ticks_us() + 30000
 
     while echo.value() == 1:
-        pulse_end = time.time_ns()
 
-    pulse_duration = (pulse_end - pulse_start) / 1e9
+        if time.ticks_diff(timeout, time.ticks_us()) <= 0:
+            return None
 
-    distance = (pulse_duration * 34300) / 2
+    pulse_end = time.ticks_us()
 
-    return distance
+    # ------------------------------------------
+    # Calculate distance
+    # ------------------------------------------
 
+    pulse_duration = time.ticks_diff(
+        pulse_end,
+        pulse_start
+    )
+
+    distance = (pulse_duration * 0.0343) / 2
+
+    return round(distance, 2)
 
 def map_value(x, in_min, in_max, out_min, out_max):
 
