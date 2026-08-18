@@ -12,9 +12,12 @@ class MQTTManager:
         )
 
     def connect(self):
-        print("Connecting to MQTT...")
-        self.client.connect()
-        print("MQTT Connected")
+        print(f"Connecting to MQTT Broker at {MQTT_BROKER}:{MQTT_PORT}...")
+        try:
+            self.client.connect()
+            print("MQTT Connected Successfully")
+        except Exception as e:
+            print(f"MQTT Connection Failed. Error: {e}")
 
     def publish(self, topic, message):
         self.client.publish(topic, message)

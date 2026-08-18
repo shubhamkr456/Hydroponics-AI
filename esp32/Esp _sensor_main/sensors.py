@@ -124,52 +124,60 @@ def read_tds_sensor():
 
 def get_distance():
 
+    # Trigger pulse
     trig.value(0)
-    time.sleep_us(2)
+    time.sleep_us(5)
 
     trig.value(1)
     time.sleep_us(10)
-
     trig.value(0)
 
-    # ------------------------------------------
-    # Wait for ECHO to become HIGH
-    # ------------------------------------------
-
-    timeout = time.ticks_us() + 30000
+    # Wait for echo to go HIGH (30 ms timeout)
+    timeout = time.ticks_us()
 
     while echo.value() == 0:
-
-        if time.ticks_diff(timeout, time.ticks_us()) <= 0:
+        if time.ticks_diff(time.ticks_us(), timeout) > 30000:
             return None
 
     pulse_start = time.ticks_us()
 
-    # ------------------------------------------
-    # Wait for ECHO to become LOW
-    # ------------------------------------------
-
-    timeout = time.ticks_us() + 30000
-
+    # Wait for echo to go LOW (30 ms timeout)
     while echo.value() == 1:
-
-        if time.ticks_diff(timeout, time.ticks_us()) <= 0:
+        if time.ticks_diff(time.ticks_us(), pulse_start) > 30000:
             return None
 
     pulse_end = time.ticks_us()
 
-    # ------------------------------------------
-    # Calculate distance
-    # ------------------------------------------
+    pulse_duration = time.ticks_diff(pulse_end, pulse_start)
 
-    pulse_duration = time.ticks_diff(
-        pulse_end,
-        pulse_start
-    )
-
+    # Speed of sound = 0.0343 cm/us
     distance = (pulse_duration * 0.0343) / 2
 
     return round(distance, 2)
+
+
+def read_reservoir_level():
+
+    readings = []
+
+    for _ in range(5):
+
+        distance = get_distance()
+
+        if distance is not None and 2 <= distance <= 32:
+            readings.append(distance)
+
+        # Allow previous echo to die out
+        time.sleep_ms(50)
+
+    if len(readings) == 0:
+        return None
+
+    readings.sort()
+
+    # Return the median value
+    return readings[len(readings) // 2]
+
 
 def map_value(x, in_min, in_max, out_min, out_max):
 
@@ -219,7 +227,7 @@ def read_all():
 
     ppm, tds_voltage = read_tds_sensor()
 
-    distance = get_distance()
+    distance = read_reservoir_level()
 
     ldr_raw, light_pct = read_ldr_sensor()
 
