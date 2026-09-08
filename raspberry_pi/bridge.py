@@ -23,7 +23,6 @@ MQTT_TOPIC_TIME_RESPONSE = "hydroponics/time/response"
 
 FLASK_URL = "http://192.168.0.100:5000/captures"
 
-
 # ==========================================
 # MQTT Connected
 # ==========================================

@@ -24,7 +24,7 @@ CORS(app)
 # MQTT Configuration
 # ==========================================
 
-MQTT_BROKER =  "10.111.27.126"
+MQTT_BROKER =  "192.168.0.103"
     # Raspberry Pi IP
 MQTT_PORT = 1883
 MQTT_TOPIC_CONTROL = "hydroponics/control"
