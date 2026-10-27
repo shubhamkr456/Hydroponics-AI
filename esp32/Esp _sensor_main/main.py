@@ -1,7 +1,7 @@
 #---Imports--------------------------------
 from wifi import connect
 from mqtt_client import MQTTManager
-from sensors import read_all, read_reservoir_level
+from sensors import read_all
 from config import MQTT_TOPIC_SENSOR, DEVICE_ID
 import machine
 from machine import RTC
@@ -10,29 +10,27 @@ import json
 import time
 import network
 from relay import relays
+
+# --- New Display Module Imports ---
 from display import init_display, update_display
 
 # ==========================================
 # Constants & Settings
 # ==========================================
 
-PUMP_RUNTIME = 5  # seconds
-PUBLISH_INTERVAL = 60
-
-# --- Water Level Constants ---
-WATER_PUMP_RELAY = 19
-FILL_START_CM = 15.0
-FILL_STOP_CM = 8.0
+PUMP_RUNTIME = 10  # The exact number of seconds a pump will run when triggered manually
+PUBLISH_INTERVAL = 60 # How often to read sensors & send MQTT data (60 = 1 minute)
+RECONNECT_INTERVAL = 10 # How often to retry Wi-Fi/MQTT if offline
 
 # --- Light & Time Constants ---
 LIGHT_RELAY = 14
-LDR_THRESHOLD = 2400
-START_HOUR = 6    # Light window starts at 6:00 AM
+LDR_THRESHOLD = 2500
+START_HOUR = 6    
 START_MINUTE = 0
-END_HOUR = 23     # Light window ends at 11:00 PM
+END_HOUR = 23     
 END_MINUTE = 0
 
-# --- MQTT Topics (Merged) ---
+# --- MQTT Topics ---
 MQTT_TOPIC_TIME_REQUEST = b"hydroponics/time/request"
 MQTT_TOPIC_TIME_RESPONSE = b"hydroponics/time/response"
 MQTT_TOPIC_CONTROL = b"hydroponics/control"
@@ -41,121 +39,22 @@ MQTT_TOPIC_CONTROL = b"hydroponics/control"
 # Global State
 # ==========================================
 latest_sensor_data = {}
-is_filling = False
-wlan = None
-mqtt = None
+wlan = network.WLAN(network.STA_IF)
+mqtt = MQTTManager()
 rtc = RTC()
 
-# Modes
 mode = "AUTO"
 manual_light = False
+mqtt_connected = False  
+last_network_retry = 0
 
+# Track when a pump was turned on so we can auto-turn it off
 pump_timers = {
     33: None,
     25: None,
     26: None,
     4: None,
 }
-
-# ==========================================
-# Reconnect Functions
-# ==========================================
-
-def reconnect_wifi():
-    print("Wi-Fi Lost... Reconnecting")
-    global wlan
-    while True:
-        try:
-            wlan = connect()
-            print("Wi-Fi Reconnected")
-            return
-        except Exception as e:
-            print("Wi-Fi Retry Failed:", e)
-            time.sleep(5)
-
-def reconnect_mqtt():
-    print("MQTT Lost... Reconnecting")
-    global mqtt
-    while True:
-        try:
-            mqtt.connect()
-            mqtt.set_callback(mqtt_callback)
-            mqtt.subscribe(MQTT_TOPIC_CONTROL)
-            mqtt.subscribe(MQTT_TOPIC_TIME_RESPONSE)
-            
-            # Re-sync time on reconnect so the light schedule stays accurate
-            mqtt.publish(MQTT_TOPIC_TIME_REQUEST, json.dumps({"device_id": DEVICE_ID}))
-            
-            print("MQTT Reconnected. Time re-synchronization requested.")
-            return
-        except Exception as e:
-            print("MQTT Retry Failed:", e)
-            time.sleep(5)
-
-# ==========================================
-# Automation Functions
-# ==========================================
-
-def manage_lights(ldr_raw):
-    """
-    Controls lights based on mode (AUTO/MANUAL), RTC time, and LDR sensor.
-    """
-    if mode == "AUTO":
-        current = time.localtime()
-        current_minutes = current[3] * 60 + current[4]
-        start_minutes = START_HOUR * 60 + START_MINUTE
-        end_minutes = END_HOUR * 60 + END_MINUTE
-
-        # Only check light level if we are inside the scheduled daily window
-        if start_minutes <= current_minutes < end_minutes:
-            if ldr_raw is not None and ldr_raw < LDR_THRESHOLD:
-                if relays[LIGHT_RELAY].value() != 0:
-                    relays[LIGHT_RELAY].value(0)
-                    print(f"AUTO Mode: Dark inside window. Light ON (Time: {current[3]}:{current[4]:02d}).")
-            else:
-                if relays[LIGHT_RELAY].value() != 1:
-                    relays[LIGHT_RELAY].value(1)
-                    print(f"AUTO Mode: Bright enough. Light OFF.")
-        else:
-            # Outside of scheduled window, force lights off regardless of LDR
-            if relays[LIGHT_RELAY].value() != 1:
-                relays[LIGHT_RELAY].value(1)
-                print(f"AUTO Mode: Outside scheduled window ({END_HOUR}:00). Light OFF.")
-                
-    elif mode == "MANUAL":
-        # Override everything based on manual MQTT command
-        if manual_light:
-            if relays[LIGHT_RELAY].value() != 0:
-                relays[LIGHT_RELAY].value(0)
-                print("MANUAL Mode: Light ON.")
-        else:
-            if relays[LIGHT_RELAY].value() != 1:
-                relays[LIGHT_RELAY].value(1)
-                print("MANUAL Mode: Light OFF.")
-
-def auto_turn_off_pumps(now):
-    for relay, start_time in pump_timers.items():
-        if start_time is None:
-            continue
-        if now - start_time >= PUMP_RUNTIME:
-            relays[relay].value(1)
-            pump_timers[relay] = None
-            print("Relay", relay, "AUTO OFF")
-
-def manage_water_level():
-    global is_filling
-    dist = read_reservoir_level()
-    time.sleep(0.01)
-
-    if dist is not None:
-        if dist >= FILL_START_CM and not is_filling:
-            print(f"Water low ({dist} cm). Fill Pump ON.")
-            relays[WATER_PUMP_RELAY].value(0)  
-            is_filling = True
-        elif dist <= FILL_STOP_CM and is_filling:
-            print(f"Water full ({dist} cm). Fill Pump OFF.")
-            relays[WATER_PUMP_RELAY].value(1)  
-            is_filling = False
 
 # ==========================================
 # MQTT Callback
@@ -192,9 +91,9 @@ def mqtt_callback(topic, msg):
         if mode == "MANUAL" and "light" in data:
             manual_light = data["light"]
             print("Manual Light Set To:", manual_light)
-            manage_lights(None) # Force immediate update
+            manage_lights(latest_sensor_data.get("ldr_raw")) # Force immediate update
 
-        # Legacy Pump Control
+        # Pump Control
         relay = data.get("relay")
         state = data.get("state")
         
@@ -217,23 +116,93 @@ def mqtt_callback(topic, msg):
     except Exception as e:
         print("MQTT Callback Error:", e)
 
+
+# ==========================================
+# Non-Blocking Reconnect Functions
+# ==========================================
+
+def try_wifi():
+    print("Attempting Wi-Fi connection...")
+    try:
+        connect() 
+        return wlan.isconnected()
+    except Exception as e:
+        print("Wi-Fi attempt failed:", e)
+        return False
+
+def try_mqtt():
+    global mqtt_connected
+    print("Attempting MQTT connection...")
+    try:
+        mqtt.connect()
+        mqtt.set_callback(mqtt_callback)
+        mqtt.subscribe(MQTT_TOPIC_CONTROL)
+        mqtt.subscribe(MQTT_TOPIC_TIME_RESPONSE)
+        mqtt.publish(MQTT_TOPIC_TIME_REQUEST, json.dumps({"device_id": DEVICE_ID}))
+        
+        mqtt_connected = True
+        print("MQTT Reconnected Successfully!")
+    except Exception as e:
+        print("MQTT attempt failed:", e)
+        mqtt_connected = False
+
+
+# ==========================================
+# Automation Functions
+# ==========================================
+
+def manage_lights(ldr_raw):
+    if mode == "AUTO":
+        current = time.localtime()
+        current_minutes = current[3] * 60 + current[4]
+        start_minutes = START_HOUR * 60 + START_MINUTE
+        end_minutes = END_HOUR * 60 + END_MINUTE
+
+        if start_minutes <= current_minutes < end_minutes:
+            if ldr_raw is not None and ldr_raw < LDR_THRESHOLD:
+                if relays[LIGHT_RELAY].value() != 0:
+                    relays[LIGHT_RELAY].value(0)
+            else:
+                if relays[LIGHT_RELAY].value() != 1:
+                    relays[LIGHT_RELAY].value(1)
+        else:
+            if relays[LIGHT_RELAY].value() != 1:
+                relays[LIGHT_RELAY].value(1)
+                
+    elif mode == "MANUAL":
+        if manual_light:
+            if relays[LIGHT_RELAY].value() != 0:
+                relays[LIGHT_RELAY].value(0)
+        else:
+            if relays[LIGHT_RELAY].value() != 1:
+                relays[LIGHT_RELAY].value(1)
+
+def auto_turn_off_pumps(now):
+    for relay, start_time in pump_timers.items():
+        if start_time is None:
+            continue
+        if now - start_time >= PUMP_RUNTIME:
+            relays[relay].value(1)
+            pump_timers[relay] = None
+            print(f"Relay {relay} AUTO OFF")
+
+
 # ==========================================
 # INITIALIZATION
 # ==========================================
 gc.enable()
-
-wlan = network.WLAN(network.STA_IF)
-if not wlan.isconnected():
-    reconnect_wifi()
-
-mqtt = MQTTManager()
-reconnect_mqtt()
-
-oled_ch5, oled_ch7, oled_ch3, i2c = init_display()
-latest_sensor_data = read_all()
 last_publish = 0
+print("Standalone Hydroponics Node Started")
 
-print("Hydroponics Node Started")
+# --- Initialize physical OLED Screen ---
+oled_screen = init_display()
+
+# Try connecting once on boot
+if not wlan.isconnected():
+    try_wifi()
+if wlan.isconnected():
+    try_mqtt()
+
 
 # ==========================================
 # MAIN LOOP
@@ -241,48 +210,63 @@ print("Hydroponics Node Started")
 
 while True:
     try:
-        # Check Connections
-        if not wlan.isconnected():
-            reconnect_wifi()
-            
-        try:
-            mqtt.check_messages()
-            # Simple ping logic to keep broker connection alive
-            if hasattr(mqtt.client, 'ping'):
-                mqtt.client.ping()
-        except Exception as e:
-            print("MQTT Check Failed:", e)
-            reconnect_mqtt()
-
         now = time.time()
 
-        # Run Core Processes
+        # 1. NETWORK MANAGEMENT (Non-Blocking)
+        if not wlan.isconnected():
+            mqtt_connected = False
+            if now - last_network_retry >= RECONNECT_INTERVAL:
+                try_wifi()
+                last_network_retry = now
+                
+        elif not mqtt_connected:
+            if now - last_network_retry >= RECONNECT_INTERVAL:
+                try_mqtt()
+                last_network_retry = now
+                
+        else:
+            # Connected, check for messages
+            try:
+                mqtt.check_messages()
+            except Exception:
+                print("MQTT Connection Lost!")
+                mqtt_connected = False
+
+        # 2. CORE AUTOMATION
+        # This checks the 5-second timers every single loop!
         auto_turn_off_pumps(now)
-        manage_water_level()
         
-        # Publish & Display (Every 60 Seconds)
+        # 3. SENSOR & LIGHT MANAGEMENT (Runs on interval)
         if now - last_publish >= PUBLISH_INTERVAL:
             latest_sensor_data = read_all()
-            latest_sensor_data["device_id"] = DEVICE_ID
-            latest_sensor_data["mode"] = mode
             
-            # Manage lights using RTC and Sensor Data
+            # Update physical display with newest sensor readouts
+            update_display(oled_screen, latest_sensor_data)
+            
+            # Lights are managed offline-safely
             manage_lights(latest_sensor_data.get("ldr_raw"))
-            
-            update_display(
-                oled_ch5, oled_ch7, oled_ch3, i2c, latest_sensor_data
-            )
 
-            mqtt.publish(MQTT_TOPIC_SENSOR, json.dumps(latest_sensor_data))
-            print(latest_sensor_data)
-
-            last_publish = now
+            # 4. PUBLISH
+            if mqtt_connected:
+                try:
+                    latest_sensor_data["device_id"] = DEVICE_ID
+                    latest_sensor_data["mode"] = mode
+                    mqtt.publish(MQTT_TOPIC_SENSOR, json.dumps(latest_sensor_data))
+                    print("Published:", latest_sensor_data)
+                except Exception as e:
+                    print("Publish failed:", e)
+                    mqtt_connected = False # Force a reconnect on next loop
+            else:
+                print("Offline Mode. Sensors read, but skipping publish.")
             
-            print("Free RAM:", gc.mem_free())
             gc.collect()
+            last_publish = now
 
-        time.sleep(0.1)
+        # FAST LOOP SLEEP: Keeps the loop ticking so it can check pump timers instantly!
+        # Do not change this to 50 or 60! 
+        time.sleep(1.0)
 
     except Exception as e:
-        print("Main Loop Error:", e)
-        time.sleep(1)
+        print("Main Loop Error:  ", e)
+        time.sleep(1.0)
+
