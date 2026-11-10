@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Hydroponics backend (app.py)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}\\backend\\app.py",
+      "python": "C:\\Users\\hp\\AppData\\Local\\Hydroponics-AI\\venv\\Scripts\\python.exe",
+      "cwd": "${workspaceFolder}\\backend",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}
